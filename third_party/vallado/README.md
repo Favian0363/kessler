@@ -1,0 +1,12 @@
+# Vallado reference SGP4
+
+1. Go to https://celestrak.org/publications/AIAA/2006-6753/
+2. Download the C++ source and copy `SGP4.cpp` and `SGP4.h` into this folder.
+   (If the current release names files differently, adjust the path in the
+   top-level CMakeLists.txt.)
+3. Also download the verification files `SGP4-VER.TLE` (input) and the C++
+   expected output (`tcppver.out`) into `tests/data/`.
+
+Per the authors' FAQ, the code carries no license, and users are asked to cite
+the paper and link to the page above in documentation and source. This
+repository does so in the top-level README.

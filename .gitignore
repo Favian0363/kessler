@@ -1,0 +1,10 @@
+build/
+cmake-build-*/
+.cache/
+compile_commands.json
+*.o
+# Orbit data is downloaded, never committed (it changes daily and can be large).
+data/*
+!data/README.md
+# Small hand-picked fixtures used by tests ARE committed.
+!tests/data/
