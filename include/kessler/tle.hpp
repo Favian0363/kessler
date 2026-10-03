@@ -59,7 +59,19 @@ double parse_implied_exponent(std::string_view field);
 /// checksum, or describe different satellites.
 Tle parse_tle(std::string_view line1, std::string_view line2, std::string_view name = {});
 
-/// Parses a whole file in 2-line or 3-line (with names) format.
+/// Parses a whole file in 2-line or 3-line (with names) format. Blank lines
+/// and lines starting with '#' are skipped; Space-Track's "0 " name prefix is
+/// removed. Strict: throws on the first problem, with the line number.
 std::vector<Tle> parse_tle_stream(std::istream& in);
+
+struct TleStreamResult {
+    std::vector<Tle> tles;
+    std::vector<std::string> errors;  // "line N: what went wrong"
+};
+
+/// Same as parse_tle_stream, but skips bad entries and reports them instead of
+/// throwing. Use for real catalogs, where one corrupt record must not abort a
+/// 30,000-object run.
+TleStreamResult parse_tle_stream_lenient(std::istream& in);
 
 } // namespace kessler

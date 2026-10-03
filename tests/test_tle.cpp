@@ -97,3 +97,81 @@ TEST_CASE("parses 2-line and 3-line streams with CRLF endings", "[tle]") {
     CHECK(b[0].name.empty());
     CHECK(b[0].catalog_number == 25544);
 }
+
+// ---------------------------------------------------------------------------
+// Regression tests: real-world failure modes found in code review.
+// ---------------------------------------------------------------------------
+
+namespace {
+// Rewrites column 69 so the ONLY defect in a line is the one a test introduces.
+std::string with_checksum(std::string line) {
+    line[68] = static_cast<char>('0' + tle_checksum(line));
+    return line;
+}
+
+// Returns the exception message, or "" if nothing was thrown.
+template <typename F>
+std::string error_of(F&& f) {
+    try { f(); } catch (const TleParseError& e) { return e.what(); }
+    return "";
+}
+} // namespace
+
+TEST_CASE("accepts a '+' sign in the ndot field", "[tle][regression]") {
+    std::string l1 = kIss1;
+    l1[33] = '+';
+    const Tle t = parse_tle(with_checksum(l1), kIss2);
+    CHECK_THAT(t.ndot_over_2, WithinAbs(0.00002182, 1e-12));
+}
+
+TEST_CASE("garbage inside a number throws and names the field", "[tle][regression]") {
+    std::string l2 = kIss2;
+    l2[12] = 'x';  // " 51.6416" -> " 51.x416"
+    const std::string msg = error_of([&] { parse_tle(kIss1, with_checksum(l2)); });
+    CHECK(msg.find("inclination") != std::string::npos);
+}
+
+TEST_CASE("implied-exponent fields are validated strictly", "[tle][regression]") {
+    CHECK_THROWS_AS(parse_implied_exponent("11606-4"), TleParseError);   // 7 chars
+    CHECK_THROWS_AS(parse_implied_exponent("x11606-4"), TleParseError);  // bad sign column
+    CHECK_THROWS_AS(parse_implied_exponent("-11a06-4"), TleParseError);  // non-digit mantissa
+}
+
+TEST_CASE("orphan line 2 is reported, never used as a name", "[tle][regression]") {
+    const std::string text = kIss2 + "\n" + kIss1 + "\n" + kIss2 + "\n";
+
+    std::istringstream strict(text);
+    CHECK(error_of([&] { parse_tle_stream(strict); }).find("line 1:") != std::string::npos);
+
+    std::istringstream lenient(text);
+    const auto r = parse_tle_stream_lenient(lenient);
+    REQUIRE(r.tles.size() == 1);
+    CHECK(r.tles[0].name.empty());
+    CHECK(r.errors.size() == 1);
+}
+
+TEST_CASE("line 1 without a line 2 is reported", "[tle][regression]") {
+    std::istringstream lenient(kIss1 + "\n" + kIss1 + "\n" + kIss2 + "\n");
+    const auto r = parse_tle_stream_lenient(lenient);
+    CHECK(r.tles.size() == 1);
+    CHECK(r.errors.size() == 1);
+
+    std::istringstream at_eof(kIss1 + "\n");
+    CHECK_THROWS_AS(parse_tle_stream(at_eof), TleParseError);
+}
+
+TEST_CASE("errors carry the line number of the bad record", "[tle][regression]") {
+    std::string bad = kIss2;
+    bad[68] = '0';
+    std::string text;
+    for (int i = 0; i < 3; ++i) text += kIss1 + "\n" + (i == 2 ? bad : kIss2) + "\n";
+    std::istringstream in(text);
+    CHECK(error_of([&] { parse_tle_stream(in); }).find("line 5:") != std::string::npos);
+}
+
+TEST_CASE("Space-Track '0 ' name prefix and comments are handled", "[tle][regression]") {
+    std::istringstream in("# a comment\n0 ISS (ZARYA)\n" + kIss1 + "\n" + kIss2 + "\n");
+    const auto tles = parse_tle_stream(in);
+    REQUIRE(tles.size() == 1);
+    CHECK(tles[0].name == "ISS (ZARYA)");
+}

@@ -13,12 +13,19 @@ int main(int argc, char** argv) {
         std::cerr << "error: cannot open " << argv[1] << '\n';
         return 1;
     }
-    try {
-        const auto catalog = kessler::parse_tle_stream(file);
-        std::cout << "Parsed " << catalog.size() << " objects\n";
-    } catch (const kessler::TleParseError& e) {
-        std::cerr << "parse error: " << e.what() << '\n';
-        return 1;
+    const auto result = kessler::parse_tle_stream_lenient(file);
+    std::cout << "Parsed " << result.tles.size() << " objects";
+    if (!result.errors.empty()) {
+        std::cout << ", skipped " << result.errors.size() << " bad records:\n";
+        constexpr std::size_t kMaxShown = 10;
+        for (std::size_t i = 0; i < result.errors.size() && i < kMaxShown; ++i) {
+            std::cout << "  " << result.errors[i] << '\n';
+        }
+        if (result.errors.size() > kMaxShown) {
+            std::cout << "  ... and " << result.errors.size() - kMaxShown << " more\n";
+        }
+    } else {
+        std::cout << '\n';
     }
     return 0;
 }

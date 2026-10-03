@@ -1,5 +1,8 @@
 # Architecture
 
+<!-- Grow this document phase by phase. Keep a diagram at the top (Mermaid
+     renders natively on GitHub). -->
+
 ```mermaid
 flowchart LR
     A[TLE catalog] --> B[Parse]

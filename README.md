@@ -1,16 +1,18 @@
 # kessler
 
-**satellite conjunction screening engine in C++20.**
+**A high-performance satellite conjunction screening engine in C++20.**
 
 kessler predicts close approaches between every publicly tracked object in Earth
-orbit over a 7-day window and checks its answers against CelesTrak's SOCRATES
+orbit over a 7-day window, and checks its answers against CelesTrak's SOCRATES
 conjunction reports.
 
-<!-- want to replace with a GIF of the Cesium globe visualization -->
+<!-- Phase 7: replace with a GIF of the Cesium globe visualization -->
 
 ![CI](https://github.com/Favian0363/kessler/actions/workflows/ci.yml/badge.svg)
 
 ## Results
+
+<!-- Fill ONLY with measured numbers. Every number links to how it was measured. -->
 
 | Metric | Value |
 |---|---|
@@ -22,12 +24,12 @@ conjunction reports.
 | SOCRATES recall / precision | TBD |
 | Hardware | TBD |
 
-## Hard part
+## Why this is hard
 
 There are over 30,000 tracked objects, which means hundreds of millions of
 pairs to check at every time step, and objects close on each other at up to
-15 kms. A brute force search takes hours; a naive "fast" search silently
-misses collisions that happen between time steps. kessler is fast and
+~15 km/s. A brute-force search takes hours; a naive "fast" search silently
+misses collisions that happen between time steps. kessler is fast **and**
 provably agrees with a brute-force oracle. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Quick start
