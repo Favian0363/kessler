@@ -22,10 +22,9 @@ int tle_checksum(std::string_view line) {
     if (line.size() < 68){
 	    throw TleParseError("tle_checksum: incorrect string");
     }
-    std::string_view sv{line.begin(), line.begin() + 68};
     int total = 0;
-    for (unsigned char c : sv){
-	    if (std::isdigit(c)){
+    for (char c : line.substr(0,68){
+	    if (std::isdigit(static_cast<unsigned char>(c))){
 		    total += (c - '0');
 	    }
 	    else if (c == '-'){
@@ -36,10 +35,17 @@ int tle_checksum(std::string_view line) {
     return total;
 }
 
-int tle_full_year(int two_digit_year) {
-    // TODO(you)
-    (void)two_digit_year;
-    throw TleParseError("tle_full_year: not implemented");
+int tle_full_year(int two_digit_year) { 
+    if (two_digit_year < 0 || two_digit_year > 99){
+	    throw TleParseError("tle_full_year: invalid");
+    }
+    if (two_digit_year >= 57){
+	    two_digit_year += 1900;
+    }
+    else {
+	    two_digit_year += 2000;
+    }
+    return two_digit_year;
 }
 
 double parse_implied_exponent(std::string_view f) {
