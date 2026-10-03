@@ -15,7 +15,7 @@ Sgp4Elements to_sgp4_elements(const Tle& t) {
     Sgp4Elements e;
     e.catalog_number = t.catalog_number;
     e.epoch = tle_epoch_jd(t.epoch_year, t.epoch_day);
-    e.epoch_days_since_1950 = (e.epoch.day - kJd1950Jan0) + e.epoch.frac;
+    e.epoch_days_since_1950 = (e.epoch.day + e.epoch.frac) - kJd1950Jan0;
     e.bstar = t.bstar;
     e.ndot  = t.ndot_over_2 * kRevPerDayToRadPerMin / kMinPerDay;
     e.nddot = t.nddot_over_6 * kRevPerDayToRadPerMin / (kMinPerDay * kMinPerDay);
