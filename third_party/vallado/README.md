@@ -4,8 +4,9 @@
 2. Download the C++ source and copy `SGP4.cpp` and `SGP4.h` into this folder.
    (If the current release names files differently, adjust the path in the
    top-level CMakeLists.txt.)
-3. Also download the verification files `SGP4-VER.TLE` (input) and the C++
-   expected output (`tcppver.out`) into `tests/data/`.
+3. Copy the verification input `SGP4-VER.TLE` into `tests/data/`. The
+   differential test (`tests/verify_vallado.cpp`) compares kessler against
+   Vallado's own pipeline, so no separate expected-output file is needed.
 
 Per the authors' FAQ, the code carries no license, and users are asked to cite
 the paper and link to the page above in documentation and source. This

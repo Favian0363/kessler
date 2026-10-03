@@ -26,6 +26,13 @@ Earth-fixed coordinates is only needed for visualization.
 Each TLE has its own epoch. To compare objects, every object is propagated to
 the same absolute UTC instants: `minutes_since_epoch_i = (t - epoch_i)`.
 
+## Known limitations
+
+- **Leap seconds.** Julian Date arithmetic on UTC assumes 86,400-second days.
+  If a leap second fell inside a screening window, elapsed time would be off by
+  1 s (~7.7 km along-track for LEO). None has been inserted since the end of 2016.
+- **Catalog numbers above 99,999** (Alpha-5 format) are not yet supported.
+
 ## Components
 
 _TBD as phases are completed._

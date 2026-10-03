@@ -55,7 +55,7 @@ Details: [docs/VALIDATION.md](docs/VALIDATION.md).
 ## Roadmap
 
 - [x] Phase 0: build system, tests, CI
-- [x] Phase 1: TLE parsing + SGP4 propagation (verified against Vallado test vectors)
+- [ ] Phase 1: TLE parsing + SGP4 propagation (verified against Vallado test vectors)
 - [ ] Phase 2: brute-force screening oracle
 - [ ] Phase 3: time-of-closest-approach refinement
 - [ ] Phase 4: spatial grid + orbital filters (verified identical to oracle)
