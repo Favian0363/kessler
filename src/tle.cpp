@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <istream>
+#include <cctype>
 
 namespace kessler {
 namespace {
@@ -15,20 +16,24 @@ namespace {
     return line.substr(first - 1, last - first + 1);
 }
 
-// TODO
-//   - trim(std::string_view)       -> strip leading/trailing spaces
-//   - to_double(std::string_view)  -> std::from_chars, throw TleParseError on failure
-//   - to_int(std::string_view)     -> same for ints
-// Hint: std::from_chars does NOT skip leading spaces and does NOT accept a
-// leading '+'. Also note "-.00002182" has no digit before the '.', check that
-// your number parsing accepts it.
-
 } // namespace
 
 int tle_checksum(std::string_view line) {
-    // TODO(you)
-    (void)line;
-    throw TleParseError("tle_checksum: not implemented");
+    if (line.size() < 68){
+	    throw TleParseError("tle_checksum: incorrect string");
+    }
+    std::string_view sv{line.begin(), line.begin() + 68};
+    int total = 0;
+    for (unsigned char c : sv){
+	    if (std::isdigit(c)){
+		    total += (c - '0');
+	    }
+	    else if (c == '-'){
+		    total += 1;
+	    }
+    }
+    total = total % 10;
+    return total;
 }
 
 int tle_full_year(int two_digit_year) {
