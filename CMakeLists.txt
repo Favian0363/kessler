@@ -27,12 +27,6 @@ if(KESSLER_SANITIZE AND NOT MSVC)
   add_link_options(-fsanitize=address,undefined)
 endif()
 
-# ---- Vallado reference SGP4 (Phase 1). Compiled only once you've added it. ----
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vallado/SGP4.cpp)
-  add_library(vallado_sgp4 third_party/vallado/SGP4.cpp)
-  target_include_directories(vallado_sgp4 SYSTEM PUBLIC third_party/vallado)
-  set(KESSLER_HAVE_VALLADO ON)
-endif()
 
 # ---- Core library ----
 add_library(kessler_core
@@ -43,6 +37,19 @@ add_library(kessler_core
 target_include_directories(kessler_core PUBLIC include)
 target_link_libraries(kessler_core PRIVATE kessler_warnings)
 
+# ---- Vallado reference SGP4 + our propagator (only once SGP4.cpp is added) ----
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vallado/SGP4.cpp)
+  add_library(vallado_sgp4 third_party/vallado/SGP4.cpp)
+  target_include_directories(vallado_sgp4 SYSTEM PUBLIC third_party/vallado)
+  target_compile_options(vallado_sgp4 PRIVATE -w)  # don't show warnings from third-party code
+
+  add_library(kessler_propagation src/propagator.cpp)
+  target_link_libraries(kessler_propagation PUBLIC kessler_core vallado_sgp4 PRIVATE kessler_warnings)
+  set(KESSLER_HAVE_VALLADO ON)
+else()
+  message(STATUS "third_party/vallado/SGP4.cpp not found: propagation disabled")
+endif()
+
 # ---- Command-line app ----
 add_executable(kessler apps/kessler_cli.cpp)
 target_link_libraries(kessler PRIVATE kessler_core kessler_warnings)
@@ -52,7 +59,8 @@ if(KESSLER_BUILD_TESTS)
   include(FetchContent)
   FetchContent_Declare(Catch2
     GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-    GIT_TAG        v3.7.1)
+    GIT_TAG        v3.7.1
+    GIT_SHALLOW    TRUE)
   FetchContent_MakeAvailable(Catch2)
 
   enable_testing()
@@ -66,4 +74,18 @@ if(KESSLER_BUILD_TESTS)
   list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
   include(Catch)
   catch_discover_tests(kessler_tests)
+endif()
+
+# ---- Differential verification vs. Vallado's own pipeline ----
+if(KESSLER_BUILD_TESTS AND KESSLER_HAVE_VALLADO)
+  add_executable(verify_vallado tests/verify_vallado.cpp)
+  target_link_libraries(verify_vallado PRIVATE kessler_propagation kessler_warnings)
+  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/SGP4-VER.TLE)
+    add_test(NAME vallado_differential_improved
+             COMMAND verify_vallado ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/SGP4-VER.TLE i)
+    add_test(NAME vallado_differential_afspc
+             COMMAND verify_vallado ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/SGP4-VER.TLE a)
+    set_tests_properties(vallado_differential_improved vallado_differential_afspc
+      PROPERTIES ENVIRONMENT "ASAN_OPTIONS=replace_str=0")
+  endif()
 endif()
