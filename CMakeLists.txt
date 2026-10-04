@@ -33,6 +33,7 @@ add_library(kessler_core
   src/tle.cpp
   src/time.cpp
   src/sgp4_elements.cpp
+  src/pairs.cpp
 )
 target_include_directories(kessler_core PUBLIC include)
 target_link_libraries(kessler_core PRIVATE kessler_warnings)
@@ -43,7 +44,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vallado/SGP4.cpp)
   target_include_directories(vallado_sgp4 SYSTEM PUBLIC third_party/vallado)
   target_compile_options(vallado_sgp4 PRIVATE -w)  # don't show warnings from third-party code
 
-  add_library(kessler_propagation src/propagator.cpp)
+  add_library(kessler_propagation src/propagator.cpp, src/screener.cpp)
   target_link_libraries(kessler_propagation PUBLIC kessler_core vallado_sgp4 PRIVATE kessler_warnings)
   set(KESSLER_HAVE_VALLADO ON)
 else()
@@ -87,5 +88,8 @@ if(KESSLER_BUILD_TESTS AND KESSLER_HAVE_VALLADO)
              COMMAND verify_vallado ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/SGP4-VER.TLE a)
     set_tests_properties(vallado_differential_improved vallado_differential_afspc
       PROPERTIES ENVIRONMENT "ASAN_OPTIONS=replace_str=0")
+  add_executable(kessler_screener_tests tests/test_screener.cpp)
+  target_link_libraries(kessler_screener_tests PRIVATE kessler_propagation kessler_warnings Catch2::Catch2WithMain)     
+  catch_discover_tests(kessler_screener_tests)
   endif()
 endif()
