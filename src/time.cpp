@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <stdexcept>
+#include <cstdio>
 
 namespace kessler {
 
@@ -35,4 +36,34 @@ double minutes_between(JulianDate from, JulianDate to) {
     return ((to.day - from.day) + (to.frac - from.frac)) * 1440.0;
 }
 
+JulianDate add_minutes(JulianDate t, double minutes){
+    const double frac = t.frac + minutes / 1440.0;
+    const double whole = std::floor(frac);
+    return {t.day + whole, frac - whole};
+}
+
+std::string to_utc_string(JulianDate t) {
+    const double whole = std::floor(t.frac);
+    long long day_number = static_cast<long long>(t.day + 0.5 + whole);
+    long long ms = std::llround((t.frac - whole) * 86400000.0);
+    if (ms >= 86400000LL) {
+        ms -= 86400000LL;
+        ++day_number;
+    }
+    long long l = day_number + 68569;
+    const long long n = 4 * l / 146097;
+    l = l - (146097 * n + 3) / 4;
+    const long long i = 4000 * (l + 1) / 1461001; 
+    l = l - 1461 * i / 4 + 31;
+    const long long j = 80 * l / 2447;
+    const long long day = l - 2447 * j / 80;
+    l = j / 11;
+    const long long month = j + 2 - 12 * l;
+    const long long year = 100 * (n - 49) + i + l;
+
+    char buf[96];
+    std::snprintf(buf, sizeof buf, "%04lld-%02lld-%02lld %02lld:%02lld:%02lld.%03lld", year, month, day,
+                  ms / 3600000, ms / 60000 % 60, ms / 1000 % 60, ms % 1000);
+    return buf;
+    }
 } // namespace kessler

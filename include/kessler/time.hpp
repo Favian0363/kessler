@@ -1,3 +1,5 @@
+#include <string>
+
 #pragma once
 // Time handling.
 //
@@ -32,5 +34,11 @@ JulianDate tle_epoch_jd(int year, double day_of_year);
 /// Minutes from `from` to `to` (positive if `to` is later). Whole days are
 /// subtracted first so the fractional parts keep full precision.
 double minutes_between(JulianDate from, JulianDate to);
+
+/// Moves a time forward by minutes; works backward
+JulianDate add_minutes(JulianDate t, double minutes);
+
+/// "YYYY-MM-DD HH:MM:SS.mmm"
+std::string to_utc_string(JulianDate t);
 
 } // namespace kessler

@@ -9,3 +9,4 @@ data/*
 # Small hand-picked fixtures used by tests ARE committed.
 !tests/data/
 out_*.txt
+build-*/

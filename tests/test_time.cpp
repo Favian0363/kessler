@@ -50,3 +50,24 @@ TEST_CASE("invalid dates are rejected", "[time]") {
     CHECK_THROWS_AS(julian_date(2026, 13, 1), std::invalid_argument);
     CHECK_THROWS_AS(tle_epoch_jd(2026, 0.5), std::invalid_argument);
 }
+
+TEST_CASE("Julian Dates print as UTC calendar time", "[time]") {
+    CHECK(to_utc_string(julian_date(2000, 1, 1, 12)) == "2000-01-01 12:00:00.000");
+    CHECK(to_utc_string(tle_epoch_jd(2008, 264.51782528)) == "2008-09-20 12:25:40.104");
+    // 0.4 ms before midnight rounds up into the next day (and the next year).
+    CHECK(to_utc_string(julian_date(2024, 12, 31, 23, 59, 59.9996)) == "2025-01-01 00:00:00.000");
+}
+
+TEST_CASE("add_minutes crosses midnight in both directions", "[time]") {
+    const JulianDate t = julian_date(2026, 10, 5, 23, 30);
+    CHECK(to_utc_string(add_minutes(t, 45.0)) == "2026-10-06 00:15:00.000");
+    CHECK(to_utc_string(add_minutes(t, -24.0 * 60.0)) == "2026-10-04 23:30:00.000");
+
+    // Full days must move into `day`, so `frac` always stays in [0, 1).
+    const JulianDate later = add_minutes(t, 45.0);
+    CHECK(later.day == t.day + 1.0);
+    CHECK(later.frac >= 0.0);
+    CHECK(later.frac < 1.0);
+    const JulianDate earlier = add_minutes(t, -24.0 * 60.0);
+    CHECK(earlier.day == t.day - 1.0);
+}
