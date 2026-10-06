@@ -5,7 +5,6 @@
 
 namespace kessler {
 
-// Written for you as an example of validating input at the edge of a function.
 int sample_count(const ScreenConfig& c) {
     if (!(c.step_seconds > 0.0)) throw std::invalid_argument("step_seconds must be > 0");
     if (!(c.duration_minutes >= 0.0)) throw std::invalid_argument("duration_minutes must be >= 0");
@@ -16,26 +15,37 @@ int sample_count(const ScreenConfig& c) {
 }
 
 std::vector<Hit> screen_bruteforce(std::vector<Propagator>& objects, const ScreenConfig& config) {
-    // TODO(you), in this order:
-    //   1. int steps = sample_count(config);   (this also validates the config)
-    //   2. For each object i, work out ONCE how many minutes there are from that
-    //      object's own epoch to config.start:
-    //          offset[i] = minutes_between(objects[i].epoch(), config.start)
-    //      Every object has its own epoch, so this number is different for each.
-    //   3. Make `alive` (all 1) and `positions` (one Vec3 per object), and an
-    //      empty `hits` vector.
-    //   4. For k = 0 .. steps-1:
-    //        - the time since the start, in minutes, is k * step_seconds / 60
-    //        - for each object that is still alive:
-    //              objects[i].propagate(offset[i] + that_time, state)
-    //              if it returns false: set alive[i] = 0 and move on
-    //              otherwise copy state.r_km[0..2] into positions[i]
-    //        - call find_close_pairs_bruteforce(positions, alive,
-    //                                           config.threshold_km, k, hits)
-    //   5. return hits
-    (void)objects;
-    (void)config;
-    throw std::logic_error("screen_bruteforce: not implemented");
+    const int steps = sample_count(config);
+    const std::size_t n = objects.size(); 
+    std::vector<Hit> hits;
+
+    if (n<2) return hits;
+
+    std::vector<double> offset(n);
+    std::vector<char> alive(n, 1);
+    std::vector<Vec3> positions(n);
+
+    for (std::size_t i = 0; i < n; ++i) {
+        offset[i] = minutes_between(objects[i].epoch(), config.start);
+    }
+
+    for (int k = 0; k < steps; ++k){
+        const double minutes_since_start = k * config.step_seconds / 60.0;
+
+        for (std::size_t i = 0; i < n; ++i) {
+            if (!alive[i]) continue;
+
+            StateVector state;
+            if (objects[i].propagate(offset[i] + minutes_since_start, state)) {
+                positions[i] = Vec3{state.r_km[0], state.r_km[1], state.r_km[2]};
+            } else {
+                alive[i] = 0;
+            }
+        }
+
+        find_close_pairs_bruteforce(positions, alive, config.threshold_km, k, hits);
+    }
+    return hits;
 }
 
 }  // namespace kessler

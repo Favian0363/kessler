@@ -21,7 +21,7 @@ Propagator::Propagator(const Sgp4Elements& e, Sgp4Mode mode)
                                 " (error " + std::to_string(rec_.error) + ")",
                             rec_.error);
     }
-    // sgp4init doesn't fill these; set them so the record is self-describing.
+    
     rec_.jdsatepoch = e.epoch.day;
     rec_.jdsatepochF = e.epoch.frac;
 }
