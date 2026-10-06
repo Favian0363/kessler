@@ -24,7 +24,7 @@ conjunction reports.
 | SOCRATES recall / precision | TBD |
 | Hardware | TBD |
 
-## Why this is hard
+## "problem"
 
 There are over 30,000 tracked objects, which means hundreds of millions of
 pairs to check at every time step, and objects close on each other at up to
@@ -55,8 +55,8 @@ Details: [docs/VALIDATION.md](docs/VALIDATION.md).
 ## Roadmap
 
 - [x] Phase 0: build system, tests, CI
-- [ ] Phase 1: TLE parsing + SGP4 propagation (verified against Vallado test vectors)
-- [ ] Phase 2: brute-force screening oracle
+- [x] Phase 1: TLE parsing + SGP4 propagation (verified against Vallado test vectors)
+- [x] Phase 2: brute-force screening oracle
 - [ ] Phase 3: time-of-closest-approach refinement
 - [ ] Phase 4: spatial grid + orbital filters (verified identical to oracle)
 - [ ] Phase 5: SoA layout, interpolation, OpenMP, AVX2, benchmarks
