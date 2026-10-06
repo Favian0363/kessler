@@ -40,6 +40,15 @@ double candidate_threshold_km(double miss_km, double step_seconds) {
     return miss_km + kMaxRelativeSpeedKmS * step_seconds / 2.0 + kCurvatureMarginKm;
 }
 
+bool can_get_within(double closest_sample_km, double rel_speed_km_s, double step_seconds,
+                    double miss_km) {
+    constexpr double kMaxRelativeAccelKmS2 = 0.02;  // 2 x Earth's surface gravity, rounded up
+    constexpr double kCurvatureMarginKm = 1.0;
+    const double max_speed = rel_speed_km_s + kMaxRelativeAccelKmS2 * 1.5 * step_seconds;
+    const double reach_km = miss_km + max_speed * step_seconds / 2.0 + kCurvatureMarginKm;
+    return closest_sample_km <= reach_km;
+}
+
 double golden_section_minimize(const std::function<double(double)>& f, double lo, double hi,
                                double tol) {
     if (!(hi >= lo)) throw std::invalid_argument("golden_section_minimize: need lo <= hi");

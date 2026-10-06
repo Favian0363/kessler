@@ -123,6 +123,7 @@ int main(int argc, char** argv) {
 
     // ---- Screening ----
     std::vector<Hit> hits;
+    GridTimings breakdown;
     double t_brute = -1.0, t_grid = -1.0;
     long difference = -1;
     if (brute_only || compare) {
@@ -134,7 +135,7 @@ int main(int argc, char** argv) {
     if (!brute_only) {
         std::vector<Propagator> copy = objects;
         const auto t0 = std::chrono::steady_clock::now();
-        auto grid_hits = screen_grid(copy, cfg);
+        auto grid_hits = screen_grid(copy, cfg, &breakdown);
         t_grid = seconds_since(t0);
         if (compare) difference = first_difference(hits, grid_hits);
         hits = std::move(grid_hits);
@@ -144,8 +145,24 @@ int main(int argc, char** argv) {
     const auto runs = group_into_runs(hits);
     const double t_group = seconds_since(t0);
     t0 = std::chrono::steady_clock::now();
-    auto conj = refine_runs(objects, cfg, runs, miss_km);
+    RefineStats refine_stats;
+    auto conj = refine_runs(objects, cfg, runs, miss_km, true, &refine_stats);
     const double t_refine = seconds_since(t0);
+
+    // In compare mode, also refine EVERY run (no skipping) and check the
+    // answer is the same: proof that the skip rule never loses a real one.
+    bool skip_rule_ok = true;
+    double t_refine_all = -1.0;
+    if (compare) {
+        t0 = std::chrono::steady_clock::now();
+        const auto all = refine_runs(objects, cfg, runs, miss_km, false);
+        t_refine_all = seconds_since(t0);
+        skip_rule_ok = all.size() == conj.size();
+        for (std::size_t k = 0; skip_rule_ok && k < all.size(); ++k) {
+            skip_rule_ok = all[k].a == conj[k].a && all[k].b == conj[k].b &&
+                           std::fabs(all[k].miss_km - conj[k].miss_km) <= 1e-9;
+        }
+    }
 
     // ---- Summary ----
     std::printf("objects        %zu  (skipped %zu bad records, %zu SGP4 init failures)\n",
@@ -155,7 +172,13 @@ int main(int argc, char** argv) {
     std::printf("sampling       every %.1f s, %d samples\n", step_s, sample_count(cfg));
     std::printf("thresholds     candidate %.1f km, miss %.2f km\n", cfg.threshold_km, miss_km);
     if (t_brute >= 0.0) std::printf("brute force    %.2f s  (1 thread)\n", t_brute);
-    if (t_grid >= 0.0) std::printf("grid           %.2f s  (%d threads)\n", t_grid, thread_count());
+    if (t_grid >= 0.0) {
+        std::printf("grid           %.2f s  (%d threads)\n", t_grid, thread_count());
+        std::printf("  propagation  %.2f s  (all threads)\n", breakdown.propagation_s);
+        std::printf("  grid setup   %.2f s  (one thread)\n", breakdown.setup_s);
+        std::printf("  pair search  %.2f s  (all threads)\n", breakdown.search_s);
+        std::printf("  merge        %.2f s  (one thread)\n", breakdown.merge_s);
+    }
     if (compare) {
         std::printf("speedup        %.1fx\n", t_brute / t_grid);
         if (difference < 0) {
@@ -165,7 +188,15 @@ int main(int argc, char** argv) {
         }
     }
     std::printf("hits / runs    %zu / %zu  (grouping %.3f s)\n", hits.size(), runs.size(), t_group);
-    std::printf("conjunctions   %zu  (refinement %.3f s)\n\n", conj.size(), t_refine);
+    std::printf("refinement     %.2f s  (refined %zu runs, skipped %zu that can't get within %.2f km)\n",
+                t_refine, refine_stats.refined, refine_stats.skipped, miss_km);
+    if (compare) {
+        std::printf("skip rule      %s  (refining every run took %.2f s)\n",
+                    skip_rule_ok ? "OK, same conjunctions with and without skipping"
+                                 : "FAILED, skipping changed the answer",
+                    t_refine_all);
+    }
+    std::printf("conjunctions   %zu\n\n", conj.size());
 
     // ---- Closest approaches first ----
     std::sort(conj.begin(), conj.end(),
@@ -184,5 +215,5 @@ int main(int argc, char** argv) {
                     c.miss_km, c.rel_speed_km_s);
     }
     if (conj.size() > shown) std::printf("... and %zu more\n", conj.size() - shown);
-    return (compare && difference >= 0) ? 2 : 0;
+    return (compare && (difference >= 0 || !skip_rule_ok)) ? 2 : 0;
 }

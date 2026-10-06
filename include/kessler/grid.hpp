@@ -15,11 +15,22 @@
 
 namespace kessler {
 
+// Where the time goes inside the fast screener, added up over all steps.
+// "one thread" parts limit how much more threads can help (Amdahl's law).
+struct GridTimings {
+    double propagation_s = 0.0;  // SGP4 for every object (all threads)
+    double setup_s = 0.0;        // working out cubes and sorting (one thread)
+    double search_s = 0.0;       // checking neighbors (all threads)
+    double merge_s = 0.0;        // merging and sorting the hits (one thread)
+};
+
 /// Same inputs, output and errors as find_close_pairs_bruteforce. Also throws
 /// std::out_of_range if a position is too far from the origin for the grid
 /// (about a million cells away). Uses all CPU threads (OpenMP); the result
 /// is the same no matter how many threads run.
+/// If `timings` is given, the time spent in each part is added to it.
 void find_close_pairs_grid(const std::vector<Vec3>& positions, const std::vector<char>& alive,
-                           double threshold_km, int step, std::vector<Hit>& out);
+                           double threshold_km, int step, std::vector<Hit>& out,
+                           GridTimings* timings = nullptr);
 
 }  // namespace kessler

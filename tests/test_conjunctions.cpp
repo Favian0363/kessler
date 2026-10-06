@@ -122,3 +122,38 @@ TEST_CASE("a real pass: the closest moment is found between samples, near the cl
     // ...and is at least as close as the best sample.
     CHECK(c[0].miss_km <= runs[0].closest_km + 1e-9);
 }
+
+TEST_CASE("skipping impossible runs never changes the answer", "[conjunctions]") {
+    std::vector<Propagator> objs;
+    objs.push_back(make_propagator(kIss1, kIss2));
+    objs.push_back(make_propagator(kIss1, kIss2));    // duplicate: 0 km
+    objs.push_back(make_propagator(kTrail1, kIss2));  // trailing: about 66 km
+    objs.push_back(make_propagator(kIss1, kFast2));   // a real pass about 28 km below
+    objs.push_back(make_propagator(kGeo1, kGeo2));
+    for (const double miss : {5.0, 30.0, 50.0, 100.0}) {
+        const ScreenConfig cfg{kStart, 120.0, 10.0, candidate_threshold_km(miss, 10.0)};
+        const auto runs = group_into_runs(screen_bruteforce(objs, cfg));
+        const auto with_skip = refine_runs(objs, cfg, runs, miss, true);
+        const auto without_skip = refine_runs(objs, cfg, runs, miss, false);
+        REQUIRE(with_skip.size() == without_skip.size());
+        for (std::size_t k = 0; k < with_skip.size(); ++k) {
+            CHECK(with_skip[k].a == without_skip[k].a);
+            CHECK(with_skip[k].b == without_skip[k].b);
+            CHECK_THAT(with_skip[k].miss_km, WithinAbs(without_skip[k].miss_km, 1e-9));
+        }
+    }
+}
+
+TEST_CASE("the trailing object is skipped instead of refined", "[conjunctions]") {
+    std::vector<Propagator> objs;
+    objs.push_back(make_propagator(kIss1, kIss2));
+    objs.push_back(make_propagator(kTrail1, kIss2));
+    const ScreenConfig cfg{kStart, 120.0, 10.0, candidate_threshold_km(5.0, 10.0)};
+    const auto runs = group_into_runs(screen_bruteforce(objs, cfg));
+    RefineStats stats;
+    const auto c = refine_runs(objs, cfg, runs, 5.0, true, &stats);
+    CHECK(c.empty());
+    CHECK(stats.skipped == std::size_t{1});  // 66 km apart at ~0 km/s: can never reach 5 km
+    CHECK(stats.refined == std::size_t{0});
+}
+

@@ -65,3 +65,14 @@ TEST_CASE("golden-section search rejects bad input", "[events]") {
     CHECK_THROWS_AS(golden_section_minimize(f, 5.0, 2.0, 1e-9), std::invalid_argument);
     CHECK_THROWS_AS(golden_section_minimize(f, 0.0, 1.0, 0.0), std::invalid_argument);
 }
+
+TEST_CASE("the skip rule: how far a closest sample can be and still matter", "[events]") {
+    // 10 km/s, 10 s steps, 5 km miss: reach = 5 + (10 + 0.02*15) * 5 + 1 = 57.5 km.
+    CHECK(can_get_within(57.0, 10.0, 10.0, 5.0));
+    CHECK_FALSE(can_get_within(58.0, 10.0, 10.0, 5.0));
+    // Two objects drifting side by side (0 km/s): reach = 5 + 0.3 * 5 + 1 = 7.5 km.
+    CHECK(can_get_within(7.4, 0.0, 10.0, 5.0));
+    CHECK_FALSE(can_get_within(7.6, 0.0, 10.0, 5.0));
+    // Anything already inside the miss distance always counts.
+    CHECK(can_get_within(4.0, 0.0, 10.0, 5.0));
+}

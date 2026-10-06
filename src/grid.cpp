@@ -1,6 +1,7 @@
 #include "kessler/grid.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -30,6 +31,11 @@ std::uint64_t cell_key(std::int64_t cx, std::int64_t cy, std::int64_t cz) {
            (static_cast<std::uint64_t>(cy) << kBits) | static_cast<std::uint64_t>(cz);
 }
 
+double seconds_between(std::chrono::steady_clock::time_point a,
+                       std::chrono::steady_clock::time_point b) {
+    return std::chrono::duration<double>(b - a).count();
+}
+
 struct Entry {
     std::uint64_t key;    // which cell
     std::uint32_t index;  // which object
@@ -38,7 +44,8 @@ struct Entry {
 }  // namespace
 
 void find_close_pairs_grid(const std::vector<Vec3>& positions, const std::vector<char>& alive,
-                           double threshold_km, int step, std::vector<Hit>& out) {
+                           double threshold_km, int step, std::vector<Hit>& out,
+                           GridTimings* timings) {
     if (positions.size() != alive.size()) {
         throw std::invalid_argument("find_close_pairs_grid: positions and alive differ in size");
     }
@@ -49,6 +56,7 @@ void find_close_pairs_grid(const std::vector<Vec3>& positions, const std::vector
     const double cell = threshold_km * (1.0 + 1e-9);
     const double t2 = threshold_km * threshold_km;
     const std::size_t n = positions.size();
+    const auto t_start = std::chrono::steady_clock::now();
 
     // 1. Work out every alive object's cell.
     std::vector<std::int64_t> cx(n), cy(n), cz(n);
@@ -69,6 +77,7 @@ void find_close_pairs_grid(const std::vector<Vec3>& positions, const std::vector
     // 3. For each object, search the 9 columns of cells around it (each column
     //    is 3 cells stacked in z). Threads split the objects between them;
     //    each thread collects its hits separately, then they are merged.
+    const auto t_setup = std::chrono::steady_clock::now();
     std::vector<Hit> step_hits;
     const auto count = static_cast<std::int64_t>(entries.size());
 #pragma omp parallel
@@ -107,11 +116,20 @@ void find_close_pairs_grid(const std::vector<Vec3>& positions, const std::vector
         step_hits.insert(step_hits.end(), local.begin(), local.end());
     }
 
+    const auto t_search = std::chrono::steady_clock::now();
+
     // 4. Put the hits in the same order brute force uses: by a, then b.
     std::sort(step_hits.begin(), step_hits.end(), [](const Hit& x, const Hit& y) {
         return x.a != y.a ? x.a < y.a : x.b < y.b;
     });
     out.insert(out.end(), step_hits.begin(), step_hits.end());
+
+    if (timings != nullptr) {
+        const auto t_end = std::chrono::steady_clock::now();
+        timings->setup_s += seconds_between(t_start, t_setup);
+        timings->search_s += seconds_between(t_setup, t_search);
+        timings->merge_s += seconds_between(t_search, t_end);
+    }
 }
 
 }  // namespace kessler

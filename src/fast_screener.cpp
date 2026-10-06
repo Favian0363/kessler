@@ -1,12 +1,12 @@
 #include "kessler/fast_screener.hpp"
 
-#include "kessler/grid.hpp"
-
+#include <chrono>
 #include <cstdint>
 
 namespace kessler {
 
-std::vector<Hit> screen_grid(std::vector<Propagator>& objects, const ScreenConfig& config) {
+std::vector<Hit> screen_grid(std::vector<Propagator>& objects, const ScreenConfig& config,
+                             GridTimings* timings) {
     const int steps = sample_count(config);  // also validates the config
     const std::size_t n = objects.size();
 
@@ -22,6 +22,7 @@ std::vector<Hit> screen_grid(std::vector<Propagator>& objects, const ScreenConfi
 
     for (int k = 0; k < steps; ++k) {
         const double minutes_since_start = k * config.step_seconds / 60.0;
+        const auto t0 = std::chrono::steady_clock::now();
 
         // Threads split the objects between them. Each object is handled by
         // exactly one thread, so no two threads ever touch the same Propagator
@@ -38,7 +39,11 @@ std::vector<Hit> screen_grid(std::vector<Propagator>& objects, const ScreenConfi
             }
         }
 
-        find_close_pairs_grid(positions, alive, config.threshold_km, k, hits);
+        if (timings != nullptr) {
+            timings->propagation_s +=
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        }
+        find_close_pairs_grid(positions, alive, config.threshold_km, k, hits, timings);
     }
     return hits;
 }

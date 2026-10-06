@@ -37,6 +37,18 @@ std::vector<HitRun> group_into_runs(std::vector<Hit> hits);
 /// Throws std::invalid_argument if miss_km <= 0 or step_seconds <= 0.
 double candidate_threshold_km(double miss_km, double step_seconds);
 
+/// Can a run whose closest sample was `closest_sample_km` away still get
+/// within `miss_km`? The true closest moment is within half a step of some
+/// sample, and in that time the objects move apart by at most
+/// (relative speed) x (half a step). So if the closest sample is farther than
+///     miss_km + (rel_speed_km_s + speed change) * step_seconds / 2 + 1 km
+/// the run can never get within miss_km and refining it is wasted work.
+/// "Speed change" allows the relative speed to drift by up to 0.02 km/s per
+/// second (gravity pulling the two objects in opposite directions) over 1.5
+/// steps; the 1 km covers the orbits curving.
+bool can_get_within(double closest_sample_km, double rel_speed_km_s, double step_seconds,
+                    double miss_km);
+
 /// Finds the t in [lo, hi] where f(t) is smallest, assuming f has a single
 /// valley there (true for two objects passing each other in a short window).
 /// Golden-section search: look at two points inside the interval, throw away
