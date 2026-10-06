@@ -1,22 +1,33 @@
-// kessler_screen: find close approaches in a TLE catalog (brute force for now).
+// kessler_screen: find close approaches in a TLE catalog.
 //
 // Usage: kessler_screen <catalog.tle> [hours=24] [step_seconds=10] [miss_km=5] [max_objects=0]
+//                       [--brute | --compare]
 //   max_objects = 0 means use every object in the file.
+//   (default)   fast: spatial grid + all CPU threads
+//   --brute     the slow brute-force answer key, one thread
+//   --compare   run both, check they give identical hits, and report the speedup
 //
+// Thread count: set OMP_NUM_THREADS, e.g.  OMP_NUM_THREADS=4 ./kessler_screen ...
 // The screening starts at the newest TLE epoch in the file, so every object
 // is propagated forward from its own epoch.
 
 #include "kessler/conjunctions.hpp"
+#include "kessler/fast_screener.hpp"
 #include "kessler/screener.hpp"
 #include "kessler/sgp4_elements.hpp"
 #include "kessler/tle.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <string>
 #include <vector>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 using namespace kessler;
 
@@ -28,29 +39,61 @@ double seconds_since(std::chrono::steady_clock::time_point t0) {
 
 int usage() {
     std::fprintf(stderr, "usage: kessler_screen <catalog.tle> [hours=24] [step_seconds=10] "
-                         "[miss_km=5] [max_objects=0 (all)]\n");
+                         "[miss_km=5] [max_objects=0 (all)] [--brute | --compare]\n");
     return 1;
+}
+
+int thread_count() {
+#ifdef _OPENMP
+    return omp_get_max_threads();
+#else
+    return 1;
+#endif
+}
+
+// Same pairs, steps and order, distances within 1e-9 km. Returns the number
+// of the first differing hit, or -1 if identical.
+long first_difference(const std::vector<Hit>& x, const std::vector<Hit>& y) {
+    const std::size_t n = std::min(x.size(), y.size());
+    for (std::size_t k = 0; k < n; ++k) {
+        if (x[k].a != y[k].a || x[k].b != y[k].b || x[k].step != y[k].step ||
+            std::fabs(x[k].distance_km - y[k].distance_km) > 1e-9) {
+            return static_cast<long>(k);
+        }
+    }
+    return x.size() == y.size() ? -1 : static_cast<long>(n);
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 2) return usage();
+    // ---- Arguments: positional numbers plus optional --flags ----
+    std::vector<std::string> positional;
+    bool brute_only = false, compare = false;
+    for (int k = 1; k < argc; ++k) {
+        const std::string arg = argv[k];
+        if (arg == "--brute") brute_only = true;
+        else if (arg == "--compare") compare = true;
+        else if (arg.rfind("--", 0) == 0) return usage();
+        else positional.push_back(arg);
+    }
+    if (positional.empty() || (brute_only && compare)) return usage();
+
     double hours = 24.0, step_s = 10.0, miss_km = 5.0;
     std::size_t max_objects = 0;
     try {
-        if (argc > 2) hours = std::stod(argv[2]);
-        if (argc > 3) step_s = std::stod(argv[3]);
-        if (argc > 4) miss_km = std::stod(argv[4]);
-        if (argc > 5) max_objects = std::stoul(argv[5]);
+        if (positional.size() > 1) hours = std::stod(positional[1]);
+        if (positional.size() > 2) step_s = std::stod(positional[2]);
+        if (positional.size() > 3) miss_km = std::stod(positional[3]);
+        if (positional.size() > 4) max_objects = std::stoul(positional[4]);
     } catch (const std::exception&) {
         return usage();
     }
 
     // ---- Load the catalog ----
-    std::ifstream file(argv[1]);
+    std::ifstream file(positional[0]);
     if (!file) {
-        std::fprintf(stderr, "cannot open %s\n", argv[1]);
+        std::fprintf(stderr, "cannot open %s\n", positional[0].c_str());
         return 1;
     }
     auto parsed = parse_tle_stream_lenient(file);
@@ -76,21 +119,30 @@ int main(int argc, char** argv) {
     for (const auto& o : objects) {
         if (o.epoch().total() > start.total()) start = o.epoch();
     }
-
     const ScreenConfig cfg{start, hours * 60.0, step_s, candidate_threshold_km(miss_km, step_s)};
-    const int samples = sample_count(cfg);
-    const double n = static_cast<double>(objects.size());
-    const double pair_checks = n * (n - 1.0) / 2.0 * samples;
 
-    // ---- Run the three stages, timing each ----
+    // ---- Screening ----
+    std::vector<Hit> hits;
+    double t_brute = -1.0, t_grid = -1.0;
+    long difference = -1;
+    if (brute_only || compare) {
+        std::vector<Propagator> copy = objects;  // its own copy, so runs can't affect each other
+        const auto t0 = std::chrono::steady_clock::now();
+        hits = screen_bruteforce(copy, cfg);
+        t_brute = seconds_since(t0);
+    }
+    if (!brute_only) {
+        std::vector<Propagator> copy = objects;
+        const auto t0 = std::chrono::steady_clock::now();
+        auto grid_hits = screen_grid(copy, cfg);
+        t_grid = seconds_since(t0);
+        if (compare) difference = first_difference(hits, grid_hits);
+        hits = std::move(grid_hits);
+    }
+
     auto t0 = std::chrono::steady_clock::now();
-    const auto hits = screen_bruteforce(objects, cfg);
-    const double t_screen = seconds_since(t0);
-
-    t0 = std::chrono::steady_clock::now();
     const auto runs = group_into_runs(hits);
     const double t_group = seconds_since(t0);
-
     t0 = std::chrono::steady_clock::now();
     auto conj = refine_runs(objects, cfg, runs, miss_km);
     const double t_refine = seconds_since(t0);
@@ -100,13 +152,20 @@ int main(int argc, char** argv) {
                 objects.size(), parsed.errors.size(), init_failures);
     std::printf("window         %s  ->  %s UTC\n", to_utc_string(start).c_str(),
                 to_utc_string(add_minutes(start, cfg.duration_minutes)).c_str());
-    std::printf("sampling       every %.1f s, %d samples\n", step_s, samples);
+    std::printf("sampling       every %.1f s, %d samples\n", step_s, sample_count(cfg));
     std::printf("thresholds     candidate %.1f km, miss %.2f km\n", cfg.threshold_km, miss_km);
-    std::printf("pair checks    %.3e in %.2f s  (%.3e checks/s, includes SGP4)\n", pair_checks,
-                t_screen, pair_checks / t_screen);
+    if (t_brute >= 0.0) std::printf("brute force    %.2f s  (1 thread)\n", t_brute);
+    if (t_grid >= 0.0) std::printf("grid           %.2f s  (%d threads)\n", t_grid, thread_count());
+    if (compare) {
+        std::printf("speedup        %.1fx\n", t_brute / t_grid);
+        if (difference < 0) {
+            std::printf("identical      YES, all %zu hits match\n", hits.size());
+        } else {
+            std::printf("identical      NO, first difference at hit #%ld\n", difference);
+        }
+    }
     std::printf("hits / runs    %zu / %zu  (grouping %.3f s)\n", hits.size(), runs.size(), t_group);
-    std::printf("conjunctions   %zu  (refinement %.3f s)\n", conj.size(), t_refine);
-    std::printf("total          %.2f s\n\n", t_screen + t_group + t_refine);
+    std::printf("conjunctions   %zu  (refinement %.3f s)\n\n", conj.size(), t_refine);
 
     // ---- Closest approaches first ----
     std::sort(conj.begin(), conj.end(),
@@ -125,5 +184,5 @@ int main(int argc, char** argv) {
                     c.miss_km, c.rel_speed_km_s);
     }
     if (conj.size() > shown) std::printf("... and %zu more\n", conj.size() - shown);
-    return 0;
+    return (compare && difference >= 0) ? 2 : 0;
 }

@@ -35,9 +35,12 @@ add_library(kessler_core
   src/sgp4_elements.cpp
   src/pairs.cpp
   src/events.cpp
+  src/grid.cpp
 )
 target_include_directories(kessler_core PUBLIC include)
 target_link_libraries(kessler_core PRIVATE kessler_warnings)
+find_package(OpenMP REQUIRED)
+target_link_libraries(kessler_core PUBLIC OpenMP::OpenMP_CXX)
 
 # ---- Vallado reference SGP4 + our propagator (only once SGP4.cpp is added) ----
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vallado/SGP4.cpp)
@@ -45,7 +48,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vallado/SGP4.cpp)
   target_include_directories(vallado_sgp4 SYSTEM PUBLIC third_party/vallado)
   target_compile_options(vallado_sgp4 PRIVATE -w)  # don't show warnings from third-party code
 
-  add_library(kessler_propagation src/propagator.cpp src/screener.cpp src/conjunctions.cpp)
+  add_library(kessler_propagation src/propagator.cpp src/screener.cpp src/conjunctions.cpp src/fast_screener.cpp)
   target_link_libraries(kessler_propagation PUBLIC kessler_core vallado_sgp4 PRIVATE kessler_warnings)
   set(KESSLER_HAVE_VALLADO ON)
   add_executable(kessler_screen apps/screen_cli.cpp)
@@ -73,6 +76,7 @@ if(KESSLER_BUILD_TESTS)
     tests/test_time.cpp
     tests/test_sgp4_elements.cpp
     tests/test_events.cpp
+    tests/test_grid.cpp
   )
   target_link_libraries(kessler_tests PRIVATE kessler_core kessler_warnings Catch2::Catch2WithMain)
 
@@ -85,7 +89,7 @@ endif()
 if(KESSLER_BUILD_TESTS AND KESSLER_HAVE_VALLADO)
   add_executable(verify_vallado tests/verify_vallado.cpp)
   target_link_libraries(verify_vallado PRIVATE kessler_propagation kessler_warnings) 
-  add_executable(kessler_screener_tests tests/test_screener.cpp tests/test_conjunctions.cpp)
+  add_executable(kessler_screener_tests tests/test_screener.cpp tests/test_conjunctions.cpp tests/test_fast_screener.cpp)
   target_link_libraries(kessler_screener_tests PRIVATE kessler_propagation kessler_warnings Catch2::Catch2WithMain)     
   catch_discover_tests(kessler_screener_tests)
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/SGP4-VER.TLE)
